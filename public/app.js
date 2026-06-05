@@ -4,6 +4,8 @@ const autoplayTiming = {
   dns: 1600,
   tcp: 1800,
   scenario: 2200,
+  arp: 1700,
+  switching: 1700,
 };
 let currentLayerIndex = 0;
 let currentSearch = "";
@@ -1403,6 +1405,62 @@ function setDnsPacket(from, to, label) {
   });
 }
 
+function nodeCenter(stage, selector) {
+  const node = stage.querySelector(selector);
+  const stageRect = stage.getBoundingClientRect();
+  const rect = node.getBoundingClientRect();
+  return {
+    left: rect.left - stageRect.left + rect.width / 2 - 32,
+    top: rect.top - stageRect.top + rect.height / 2 - 18,
+  };
+}
+
+function moveLayer2Packet(stage, packet, route, label) {
+  const points = route.map((nodeName) => {
+    if (stage.id === "arpStage") {
+      const lineY = 178 - 17;
+      const arpPoints = {
+        source: { left: 126, top: 97 },
+        sourceCache: { left: 86, top: 184 },
+        switch1: { left: 317, top: 97 },
+        switch2: { left: 317, top: 257 },
+        target: { left: stage.clientWidth - 138, top: 257 },
+      };
+      return arpPoints[nodeName] || nodeCenter(stage, `[data-arp-node="${nodeName}"]`);
+    }
+    return nodeCenter(stage, `[data-switch-node="${nodeName}"]`);
+  });
+  if (points.length === 0) return;
+  packet.textContent = label;
+  packet.classList.remove("visible", "pulse");
+  packet.style.transition = "none";
+  packet.style.left = `${points[0].left}px`;
+  packet.style.top = `${points[0].top}px`;
+  packet.getBoundingClientRect();
+  packet.classList.add("visible");
+  packet.style.transition = "";
+  points.slice(1).forEach((point, index) => {
+    window.setTimeout(() => {
+      packet.style.left = `${point.left}px`;
+      packet.style.top = `${point.top}px`;
+      if (index === points.length - 2 && points.length === 1) {
+        packet.classList.add("pulse");
+      }
+    }, 80 + index * 450);
+  });
+  if (points.length === 1) {
+    packet.classList.add("pulse");
+  }
+}
+
+function renderSimpleTable(table, rows, emptyText, columns = 2) {
+  if (!rows.length) {
+    table.innerHTML = `<tr><td colspan="${columns}">${emptyText}</td></tr>`;
+    return;
+  }
+  table.innerHTML = rows.map((row) => `<tr>${row.map((cell) => `<td>${cell}</td>`).join("")}</tr>`).join("");
+}
+
 function setupDnsDemo() {
   let index = -1;
   let activeSteps = [];
@@ -1782,6 +1840,354 @@ function setupTcpDemo() {
   });
   tcpAutoButton.addEventListener("click", toggleTcpAutoplay);
   document.querySelector("#tcpReset").addEventListener("click", reset);
+  reset();
+}
+
+function setupArpDemo() {
+  let index = -1;
+  let timer = null;
+  let cacheRows = [];
+  const stage = document.querySelector("#arpStage");
+  const packet = document.querySelector("#arpPacket");
+  const title = document.querySelector("#arpStepTitle");
+  const text = document.querySelector("#arpStepText");
+  const result = document.querySelector("#arpResult");
+  const frameType = document.querySelector("#arpFrameType");
+  const cast = document.querySelector("#arpCast");
+  const srcMac = document.querySelector("#arpSrcMac");
+  const dstMac = document.querySelector("#arpDstMac");
+  const table = document.querySelector("#arpCacheTable");
+  const autoButton = document.querySelector("#arpAuto");
+  const nodes = stage.querySelectorAll("[data-arp-node]");
+  const paths = stage.querySelectorAll("[data-arp-path]");
+  const mac = {
+    h1: "00-11-22-33-44-cc",
+    h2: "00-11-22-33-44-dd",
+    broadcast: "ff-ff-ff-ff-ff-ff",
+  };
+  const steps = [
+    {
+      title: "步骤 1：源主机检查 ARP 缓存",
+      text: "H1 已知目标 IP 为 192.168.1.3，但 ARP 表中没有该 IP 对应的 MAC 地址，因此需要发起 ARP 地址解析。",
+      label: "查表",
+      route: ["sourceCache"],
+      active: ["source"],
+      frame: "本地 ARP 表查询",
+      cast: "本机检查",
+      src: mac.h1,
+      dst: "未知",
+      paths: [],
+      result: "解析结果：目标 MAC 未知",
+      cache: [],
+    },
+    {
+      title: "步骤 2：H1 发送 ARP Request 广播",
+      text: "H1 构造 ARP Request：谁拥有 192.168.1.3？请告诉 192.168.1.2。以太网目的 MAC 使用广播地址。",
+      label: "Request",
+      route: ["source", "switch1"],
+      active: ["source", "switch1"],
+      broadcast: ["switch1"],
+      frame: "ARP Request",
+      cast: "广播",
+      src: mac.h1,
+      dst: mac.broadcast,
+      paths: ["source-switch1"],
+      result: "解析结果：广播查询中",
+      cache: [],
+    },
+    {
+      title: "步骤 3：两个交换机继续泛洪 ARP Request",
+      text: "交换机不会解析 ARP 内容，只根据目的 MAC 为广播地址进行泛洪。S1 将请求转发给 S2，S2 再把广播帧送到 H2。",
+      label: "广播",
+      route: ["switch1", "switch2", "target"],
+      active: ["switch1", "switch2", "target"],
+      broadcast: ["switch1", "switch2", "target"],
+      frame: "ARP Request",
+      cast: "广播泛洪",
+      src: mac.h1,
+      dst: mac.broadcast,
+      paths: ["switch1-switch2", "switch2-target"],
+      result: "解析结果：H2 收到查询",
+      cache: [],
+    },
+    {
+      title: "步骤 4：H2 返回 ARP Reply",
+      text: "H2 发现请求中的目标 IP 正是自己，于是单播 ARP Reply，把自己的 MAC 地址返回给 H1。",
+      label: "Reply",
+      route: ["target", "switch2", "switch1", "source"],
+      active: ["target", "switch2", "switch1", "source"],
+      frame: "ARP Reply",
+      cast: "单播",
+      src: mac.h2,
+      dst: mac.h1,
+      paths: ["switch2-target", "switch1-switch2", "source-switch1"],
+      result: "解析结果：H1 收到 H2 的 MAC",
+      cache: [],
+    },
+    {
+      title: "步骤 5：H1 写入 ARP 缓存表",
+      text: "H1 将 192.168.1.3 与 00-11-22-33-44-dd 的映射写入 ARP 缓存，后续发往 H2 的帧即可直接使用该 MAC。",
+      label: "写入",
+      route: ["source"],
+      active: ["source", "target"],
+      frame: "缓存更新",
+      cast: "本机写表",
+      src: mac.h2,
+      dst: mac.h1,
+      paths: [],
+      result: "解析结果：192.168.1.3 -> 00-11-22-33-44-dd",
+      cache: [["192.168.1.3", mac.h2]],
+      success: true,
+    },
+  ];
+
+  function stopAuto() {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    autoButton.textContent = "自动播放";
+    autoButton.classList.remove("active");
+  }
+
+  function render(step) {
+    nodes.forEach((node) => {
+      node.classList.toggle("active", step.active.includes(node.dataset.arpNode));
+      node.classList.toggle("broadcast", step.broadcast?.includes(node.dataset.arpNode));
+    });
+    paths.forEach((path) => path.classList.toggle("active", step.paths.includes(path.dataset.arpPath)));
+    title.textContent = step.title;
+    text.textContent = step.text;
+    frameType.textContent = step.frame;
+    cast.textContent = step.cast;
+    srcMac.textContent = step.src;
+    dstMac.textContent = step.dst;
+    result.textContent = step.result;
+    result.classList.toggle("success", Boolean(step.success));
+    cacheRows = step.cache;
+    renderSimpleTable(table, cacheRows, "空");
+    moveLayer2Packet(stage, packet, step.route, step.label);
+  }
+
+  function next() {
+    if (index >= steps.length - 1) {
+      stopAuto();
+      return;
+    }
+    index += 1;
+    render(steps[index]);
+  }
+
+  function reset() {
+    stopAuto();
+    index = -1;
+    cacheRows = [];
+    title.textContent = "等待开始";
+    text.textContent = "源主机已知目标 IP，但不知道目标 MAC，点击开始后逐步观察 ARP 广播与应答。";
+    result.textContent = "解析结果：等待操作";
+    result.classList.remove("success");
+    frameType.textContent = "无";
+    cast.textContent = "无";
+    srcMac.textContent = "无";
+    dstMac.textContent = "无";
+    nodes.forEach((node) => node.classList.remove("active", "broadcast"));
+    paths.forEach((path) => path.classList.remove("active"));
+    packet.classList.remove("visible", "pulse");
+    renderSimpleTable(table, cacheRows, "空");
+  }
+
+  function toggleAuto() {
+    if (timer) {
+      stopAuto();
+      return;
+    }
+    if (index >= steps.length - 1) reset();
+    next();
+    autoButton.textContent = "暂停播放";
+    autoButton.classList.add("active");
+    timer = window.setInterval(next, autoplayTiming.arp);
+  }
+
+  document.querySelector("#arpStart").addEventListener("click", () => {
+    reset();
+    next();
+  });
+  document.querySelector("#arpNext").addEventListener("click", () => {
+    stopAuto();
+    next();
+  });
+  autoButton.addEventListener("click", toggleAuto);
+  document.querySelector("#arpReset").addEventListener("click", reset);
+  reset();
+}
+
+function setupSwitchingDemo() {
+  let index = -1;
+  let timer = null;
+  const stage = document.querySelector("#switchingStage");
+  const packet = document.querySelector("#switchingPacket");
+  const title = document.querySelector("#switchingStepTitle");
+  const text = document.querySelector("#switchingStepText");
+  const result = document.querySelector("#switchingResult");
+  const frame = document.querySelector("#switchingFrame");
+  const mode = document.querySelector("#switchingMode");
+  const action = document.querySelector("#switchingAction");
+  const outcome = document.querySelector("#switchingOutcome");
+  const table = document.querySelector("#switchingMacTable");
+  const autoButton = document.querySelector("#switchingAuto");
+  const nodes = stage.querySelectorAll("[data-switch-node]");
+  const paths = stage.querySelectorAll("[data-switch-path]");
+  const mac = {
+    h1: "00-11-22-33-44-11",
+    h2: "00-11-22-33-44-22",
+    h3: "00-11-22-33-44-33",
+    h4: "00-11-22-33-44-44",
+  };
+  const steps = [
+    {
+      title: "步骤 1：交换机 MAC 地址表为空",
+      text: "初始状态下，交换机 S 尚未学习到任何主机 MAC 地址与端口的对应关系。",
+      label: "空表",
+      route: ["switch"],
+      active: ["switch"],
+      paths: [],
+      frame: "无",
+      mode: "等待接收",
+      action: "MAC 地址表为空，等待主机发送以太网帧。",
+      outcome: "尚未转发",
+      table: [],
+    },
+    {
+      title: "步骤 2：H1 向 H2 发送数据帧",
+      text: "H1 发送目的 MAC 为 H2 的以太网帧。交换机从端口 1 收到该帧，首先学习源 MAC H1 位于端口 1。",
+      label: "H1->H2",
+      route: ["h1", "switch"],
+      active: ["h1", "switch"],
+      paths: ["h1-switch"],
+      frame: `${mac.h1} -> ${mac.h2}`,
+      mode: "入站学习",
+      action: "学习源 MAC：H1 位于端口 1；查询目的 MAC H2，表中未知。",
+      outcome: "准备泛洪",
+      table: [[mac.h1, "1"]],
+    },
+    {
+      title: "步骤 3：目的 MAC 未知，交换机泛洪",
+      text: "由于表中没有 H2 的 MAC，交换机向除入端口之外的端口 2、3、4 泛洪该帧，H2、H3、H4 都会收到。",
+      label: "泛洪",
+      route: ["switch", "h2"],
+      active: ["switch", "h2", "h3", "h4"],
+      broadcast: ["h2", "h3", "h4"],
+      paths: ["h2-switch", "h3-switch", "h4-switch"],
+      frame: `${mac.h1} -> ${mac.h2}`,
+      mode: "泛洪",
+      action: "目的 MAC 未知，向端口 2、3、4 泛洪；非目标主机收到后丢弃。",
+      outcome: "H2 接收，H3/H4 丢弃",
+      table: [[mac.h1, "1"]],
+    },
+    {
+      title: "步骤 4：H2 返回数据帧，交换机学习 H2",
+      text: "H2 向 H1 返回数据帧。交换机从端口 2 收到后学习 H2 的 MAC 位于端口 2。",
+      label: "H2->H1",
+      route: ["h2", "switch", "h1"],
+      active: ["h2", "switch", "h1"],
+      paths: ["h2-switch", "h1-switch"],
+      frame: `${mac.h2} -> ${mac.h1}`,
+      mode: "学习后定向",
+      action: "学习源 MAC：H2 位于端口 2；目的 MAC H1 已知在端口 1，定向转发。",
+      outcome: "H1 收到应答",
+      table: [[mac.h1, "1"], [mac.h2, "2"]],
+    },
+    {
+      title: "步骤 5：H1 再次向 H2 发送，交换机定向转发",
+      text: "此时交换机已经知道 H2 位于端口 2，H1 再发送给 H2 时无需泛洪，只转发到端口 2。",
+      label: "单播",
+      route: ["h1", "switch", "h2"],
+      active: ["h1", "switch", "h2"],
+      paths: ["h1-switch", "h2-switch"],
+      frame: `${mac.h1} -> ${mac.h2}`,
+      mode: "定向转发",
+      action: "确认/刷新 H1 位于端口 1；查表命中 H2 位于端口 2，只向端口 2 转发。",
+      outcome: "H2 收到，其他主机不受影响",
+      table: [[mac.h1, "1"], [mac.h2, "2"]],
+      success: true,
+    },
+  ];
+
+  function stopAuto() {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    autoButton.textContent = "自动播放";
+    autoButton.classList.remove("active");
+  }
+
+  function render(step) {
+    nodes.forEach((node) => {
+      node.classList.toggle("active", step.active.includes(node.dataset.switchNode));
+      node.classList.toggle("broadcast", step.broadcast?.includes(node.dataset.switchNode));
+    });
+    paths.forEach((path) => path.classList.toggle("active", step.paths.includes(path.dataset.switchPath)));
+    title.textContent = step.title;
+    text.textContent = step.text;
+    frame.textContent = step.frame;
+    mode.textContent = step.mode;
+    action.textContent = step.action;
+    outcome.textContent = step.outcome;
+    result.textContent = step.success ? "转发结果：目的 MAC 已知，定向转发完成" : `转发结果：${step.outcome}`;
+    result.classList.toggle("success", Boolean(step.success));
+    renderSimpleTable(table, step.table, "空");
+    moveLayer2Packet(stage, packet, step.route, step.label);
+  }
+
+  function next() {
+    if (index >= steps.length - 1) {
+      stopAuto();
+      return;
+    }
+    index += 1;
+    render(steps[index]);
+  }
+
+  function reset() {
+    stopAuto();
+    index = -1;
+    title.textContent = "等待开始";
+    text.textContent = "交换机初始 MAC 地址表为空，逐步观察源 MAC 学习、未知泛洪和已知单播转发。";
+    result.textContent = "转发结果：等待操作";
+    result.classList.remove("success");
+    frame.textContent = "无";
+    mode.textContent = "无";
+    action.textContent = "等待接收帧";
+    outcome.textContent = "无";
+    nodes.forEach((node) => node.classList.remove("active", "broadcast"));
+    paths.forEach((path) => path.classList.remove("active"));
+    packet.classList.remove("visible", "pulse");
+    renderSimpleTable(table, [], "空");
+  }
+
+  function toggleAuto() {
+    if (timer) {
+      stopAuto();
+      return;
+    }
+    if (index >= steps.length - 1) reset();
+    next();
+    autoButton.textContent = "暂停播放";
+    autoButton.classList.add("active");
+    timer = window.setInterval(next, autoplayTiming.switching);
+  }
+
+  document.querySelector("#switchingStart").addEventListener("click", () => {
+    reset();
+    next();
+  });
+  document.querySelector("#switchingNext").addEventListener("click", () => {
+    stopAuto();
+    next();
+  });
+  autoButton.addEventListener("click", toggleAuto);
+  document.querySelector("#switchingReset").addEventListener("click", reset);
   reset();
 }
 
@@ -2667,6 +3073,8 @@ async function boot() {
   setupProtocolTabs();
   setupDnsDemo();
   setupTcpDemo();
+  setupArpDemo();
+  setupSwitchingDemo();
   setupScenarioFramework();
   setupKnowledgeLibrary();
   setupCatalogActiveState();
