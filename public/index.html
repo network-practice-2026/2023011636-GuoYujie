@@ -1,0 +1,444 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>计算机网络知识体系交互式展示系统</title>
+    <link rel="stylesheet" href="./styles.css?v=20260605-knowledge-export" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <p class="meta">2023011636 · 郭宇杰</p>
+          <h1>计算机网络知识体系交互式展示系统</h1>
+        </div>
+        <nav class="catalog" aria-label="系统目录">
+          <a href="#overview" data-section="overview">项目总览</a>
+          <a href="#protocols" data-section="protocols">一、协议可视化</a>
+          <a href="#scenario" data-section="scenario">二、模拟过程</a>
+          <a href="#knowledge" data-section="knowledge">三、知识库</a>
+          <a href="#graph" data-section="graph">四、知识图谱</a>
+        </nav>
+      </aside>
+
+      <main class="content">
+        <section class="section intro page-section" id="overview">
+          <h2>项目总览</h2>
+          <p>本系统按照课程任务划分为协议可视化、综合网络访问模拟、五层模型知识库和知识图谱四个展示入口，所有演示均可在本页面直接交互验证。</p>
+          <div class="overview-grid">
+            <article>
+              <span class="overview-num">01</span>
+              <h3>协议可视化</h3>
+              <p>展示 DNS 缓存命中/未命中、TCP 三次握手与四次挥手的报文和状态变化。</p>
+            </article>
+            <article>
+              <span class="overview-num">02</span>
+              <h3>模拟过程</h3>
+              <p>按步骤拆解 H1 访问 Web 服务器前的 ARP、DNS、TCP 和 HTTP 帧到达过程。</p>
+            </article>
+            <article>
+              <span class="overview-num">03</span>
+              <h3>知识库</h3>
+              <p>以数据库保存 TCP/IP 五层模型知识点，并通过页面完成查询、新增、编辑和删除。</p>
+            </article>
+            <article>
+              <span class="overview-num">04</span>
+              <h3>知识图谱</h3>
+              <p>使用 3D 关系图展示协议、设备、技术与层次结构，并支持节点聚焦查看详情。</p>
+            </article>
+          </div>
+          <div class="file-structure">
+            <div class="file-structure-head">
+              <h3>项目文件结构</h3>
+              <p>列出项目目录下全部文件；灰色项为运行日志、缓存等运行产物。</p>
+            </div>
+            <div class="file-tree" aria-label="项目文件结构">
+              <div><span class="folder">2023011636-郭宇杰/</span><small>项目根目录</small></div>
+              <div><span>├─ app.py</span><small>后端 HTTP 服务与接口路由</small></div>
+              <div><span>├─ database.py</span><small>SQLite 初始化、知识点种子数据与数据库操作</small></div>
+              <div><span>├─ README.md</span><small>项目运行与功能说明</small></div>
+              <div><span>├─ schema.sql</span><small>知识库数据表结构</small></div>
+              <div class="generated"><span>├─ server.log</span><small>后端服务标准输出日志</small></div>
+              <div class="generated"><span>├─ server.err.log</span><small>后端服务错误日志</small></div>
+              <div><span>├─ data/</span><small>数据库目录</small></div>
+              <div class="indent"><span>│  └─ network_knowledge.db</span><small>知识点 SQLite 数据库文件</small></div>
+              <div><span>├─ public/</span><small>前端页面与静态资源</small></div>
+              <div class="indent"><span>├─ index.html</span><small>页面结构与各模块容器</small></div>
+              <div class="indent"><span>├─ styles.css</span><small>整体布局、动画与视觉样式</small></div>
+              <div class="indent"><span>├─ app.js</span><small>交互逻辑、动画流程和接口调用</small></div>
+              <div class="indent"><span>└─ vendor/</span><small>本地 3D 图谱依赖，避免 CDN 加载失败</small></div>
+              <div class="indent"><span>　 ├─ 3d-force-graph.min.js</span><small>3D 力导向知识图谱库</small></div>
+              <div class="indent"><span>　 ├─ three-spritetext.min.js</span><small>3D 节点文字渲染依赖</small></div>
+              <div class="indent"><span>　 └─ three.min.js</span><small>Three.js 3D 渲染依赖</small></div>
+              <div class="generated"><span>└─ __pycache__/</span><small>Python 字节码缓存目录</small></div>
+              <div class="indent generated"><span>　 ├─ app.cpython-312.pyc</span><small>app.py 编译缓存</small></div>
+              <div class="indent generated"><span>　 └─ database.cpython-312.pyc</span><small>database.py 编译缓存</small></div>
+            </div>
+          </div>
+        </section>
+
+      <section class="section page-section" id="protocols">
+        <h2>一、协议可视化</h2>
+        <p class="section-note">面向协议行为演示，重点观察报文传递、缓存状态和连接状态变化。</p>
+        <div class="protocol-tabs">
+          <button class="tab active" data-protocol="dns">DNS 域名解析</button>
+          <button class="tab" data-protocol="tcp">TCP 连接管理</button>
+        </div>
+
+        <article class="protocol-panel active" id="dnsPanel">
+          <div class="control-row">
+            <label>
+              目标域名
+              <input id="dnsDomain" value="www.abc.com" />
+            </label>
+            <button id="dnsStart">开始查询</button>
+            <button id="dnsNext">下一步</button>
+            <button id="dnsAuto">自动播放</button>
+            <button id="dnsReset">重置</button>
+            <button id="dnsClearCache">清空缓存</button>
+          </div>
+          <div class="visual-layout">
+            <div class="topology" id="dnsTopology">
+              <div class="node" data-node="client">客户端</div>
+              <div class="link" data-link="client-local"></div>
+              <div class="node" data-node="local">本地 DNS</div>
+              <div class="link" data-link="local-root"></div>
+              <div class="node" data-node="root">根/权威 DNS</div>
+              <div class="packet" id="dnsPacket">DNS</div>
+            </div>
+            <div class="side-panel">
+              <div class="result-box" id="dnsResult">解析结果：等待查询</div>
+              <h3 id="dnsStepTitle">等待开始</h3>
+              <p id="dnsStepText">输入域名后点击开始，系统会展示缓存查询、递归查询和缓存更新过程。</p>
+              <dl class="kv-list">
+                <div><dt>缓存状态</dt><dd id="dnsCacheStatus">未查询</dd></div>
+                <div><dt>查询类型</dt><dd id="dnsQueryType">等待开始</dd></div>
+              </dl>
+              <table>
+                <thead>
+                  <tr><th>域名</th><th>IP 地址</th><th>来源</th></tr>
+                </thead>
+                <tbody id="dnsCacheTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+
+        <article class="protocol-panel" id="tcpPanel">
+          <div class="control-row">
+            <button id="tcpConnect" class="mode-button">建立连接</button>
+            <button id="tcpClose" class="mode-button">释放连接</button>
+            <button id="tcpNext">下一步</button>
+            <button id="tcpAuto">自动播放</button>
+            <button id="tcpReset">重置</button>
+          </div>
+          <div class="visual-layout">
+            <div class="tcp-stage" id="tcpStage">
+              <div class="endpoint client">
+                <strong>客户端</strong>
+                <span id="clientState">CLOSED</span>
+              </div>
+              <div class="tcp-wire">
+                <div class="tcp-message" id="tcpPacket">SYN</div>
+              </div>
+              <div class="endpoint server">
+                <strong>服务器</strong>
+                <span id="serverState">CLOSED</span>
+              </div>
+            </div>
+            <div class="side-panel">
+              <div class="result-box" id="tcpResult">连接结果：等待操作</div>
+              <h3 id="tcpStepTitle">等待开始</h3>
+              <p id="tcpStepText">点击建立连接或释放连接，然后逐步查看 SYN、ACK、FIN 报文与状态变化。</p>
+              <table>
+                <thead>
+                  <tr><th>对象</th><th>当前状态</th></tr>
+                </thead>
+                <tbody>
+                  <tr><td>客户端</td><td id="clientStateTable">CLOSED</td></tr>
+                  <tr><td>服务器</td><td id="serverStateTable">CLOSED</td></tr>
+                </tbody>
+              </table>
+              <table>
+                <thead>
+                  <tr><th>步骤</th><th>报文</th><th>方向</th></tr>
+                </thead>
+                <tbody id="tcpLogTable"></tbody>
+              </table>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section class="section page-section" id="scenario">
+        <h2>二、模拟过程</h2>
+        <p class="section-note">按照题目拓扑从 t0 到 t1 逐帧展示，重点观察交换机学习表和 H1 ARP 表变化。</p>
+        <div class="scenario-controls">
+          <button id="scenarioStart">开始</button>
+          <button id="scenarioPrev">上一步</button>
+          <button id="scenarioNext">下一步</button>
+          <button id="scenarioReplay">重播动画</button>
+          <button id="scenarioAuto">自动播放</button>
+          <button id="scenarioReset">重置</button>
+          <label class="scenario-step-jump">
+            步骤目录
+            <select id="scenarioStepSelect">
+              <option value="">选择步骤</option>
+            </select>
+          </label>
+          <span id="scenarioProgress" class="muted">步骤 0 / 0</span>
+        </div>
+        <div class="scenario-layout">
+          <div class="scenario-map" id="scenarioMap">
+            <div class="scenario-cloud" data-device="internet">
+              <strong>Internet</strong>
+              <span>公网</span>
+            </div>
+            <div class="scenario-device web" data-device="web">
+              <strong>Web服务器</strong>
+              <span>www.abc.com</span>
+              <small>203.0.113.10</small>
+            </div>
+            <div class="scenario-device router" data-device="router">
+              <strong>R</strong>
+              <span>192.168.1.1/25</span>
+              <small>00-11-22-33-44-aa</small>
+            </div>
+            <div class="scenario-device switch" data-device="switch">
+              <strong>S</strong>
+              <span>以太网交换机</span>
+            </div>
+            <div class="scenario-device dns" data-device="dns">
+              <strong>本地域名服务器</strong>
+              <span>192.168.1.126/25</span>
+              <small>00-11-22-33-44-bb</small>
+            </div>
+            <div class="scenario-device h1" data-device="h1">
+              <strong>H1</strong>
+              <span>192.168.1.2/25</span>
+              <small>00-11-22-33-44-cc</small>
+            </div>
+            <div class="scenario-device h2" data-device="h2">
+              <strong>H2</strong>
+              <span>192.168.1.3/25</span>
+              <small>00-11-22-33-44-dd</small>
+            </div>
+            <div class="scenario-css-line horizontal internet-web" data-path="internet-web"></div>
+            <div class="scenario-css-line horizontal router-internet" data-path="router-internet"></div>
+            <div class="scenario-css-line vertical router-switch" data-path="router-switch"></div>
+            <div class="scenario-css-line horizontal dns-switch" data-path="dns-switch"></div>
+            <div class="scenario-css-line horizontal switch-h2" data-path="switch-h2"></div>
+            <div class="scenario-css-line vertical switch-h1" data-path="switch-h1"></div>
+            <span class="port-label port-1">1</span>
+            <span class="port-label port-2">2</span>
+            <span class="port-label port-3">3</span>
+            <span class="port-label port-4">4</span>
+            <div class="scenario-packet" id="scenarioPacket">FRAME</div>
+          </div>
+          <aside class="scenario-detail">
+            <div class="result-box" id="scenarioStage">等待开始</div>
+            <h3 id="scenarioStepTitle">H1 访问 www.abc.com</h3>
+            <p id="scenarioStepText">点击开始后，系统将按步骤展示从 t0 到 t1 的完整通信过程。</p>
+            <dl class="scenario-facts">
+              <div><dt>起点</dt><dd id="scenarioSource">无</dd></div>
+              <div><dt>终点</dt><dd id="scenarioTarget">无</dd></div>
+              <div><dt>协议</dt><dd id="scenarioProtocol">无</dd></div>
+              <div><dt>通信方式</dt><dd id="scenarioCast">无</dd></div>
+              <div><dt>源 MAC</dt><dd id="scenarioSrcMac">无</dd></div>
+              <div><dt>目的 MAC</dt><dd id="scenarioDstMac">无</dd></div>
+              <div><dt>源 IP</dt><dd id="scenarioSrcIp">无</dd></div>
+              <div><dt>目的 IP</dt><dd id="scenarioDstIp">无</dd></div>
+            </dl>
+            <div class="switch-action">
+              <strong>交换机 S 行为</strong>
+              <p id="scenarioSwitchAction">等待接收帧。</p>
+            </div>
+            <div class="encapsulation-view">
+              <strong>协议封装视图</strong>
+              <div class="encapsulation-layers">
+                <div><span>应用层</span><p id="encapsulationApp">无</p></div>
+                <div><span>传输层</span><p id="encapsulationTransport">无</p></div>
+                <div><span>网络层</span><p id="encapsulationNetwork">无</p></div>
+                <div><span>数据链路层</span><p id="encapsulationLink">无</p></div>
+              </div>
+            </div>
+          </aside>
+        </div>
+        <div class="scenario-state-grid">
+          <article>
+            <h3>H1 ARP 表</h3>
+            <table>
+              <thead><tr><th>IP 地址</th><th>MAC 地址</th></tr></thead>
+              <tbody id="scenarioArpTable"></tbody>
+            </table>
+          </article>
+          <article>
+            <h3>交换机 S 交换表</h3>
+            <table>
+              <thead><tr><th>MAC 地址</th><th>端口</th></tr></thead>
+              <tbody id="scenarioMacTable"></tbody>
+            </table>
+          </article>
+          <article>
+            <h3>阶段结果</h3>
+            <dl class="scenario-facts compact">
+              <div><dt>DNS 解析</dt><dd id="scenarioDnsResult">未完成</dd></div>
+              <div><dt>TCP 状态</dt><dd id="scenarioTcpState">未建立</dd></div>
+              <div><dt>最终结论</dt><dd id="scenarioConclusion">尚未到达 t1</dd></div>
+            </dl>
+          </article>
+        </div>
+      </section>
+
+      <section class="section page-section" id="knowledge">
+        <div class="section-head">
+          <div>
+            <h2>三、知识库</h2>
+            <p class="section-note">知识点以 SQLite 数据库存储，通过接口完成增删改查。</p>
+          </div>
+          <div class="layer-controls">
+            <button id="prevLayer">上一层</button>
+            <button id="nextLayer">下一层</button>
+          </div>
+        </div>
+        <div class="knowledge-layout">
+          <aside class="layer-tree" aria-label="TCP/IP 五层模型目录">
+            <p class="tree-title">TCP/IP 五层模型</p>
+            <button class="layer-node active" data-layer="应用层">
+              <span>5</span>
+              <strong>应用层</strong>
+              <small>面向用户应用</small>
+            </button>
+            <button class="layer-node" data-layer="传输层">
+              <span>4</span>
+              <strong>传输层</strong>
+              <small>端到端通信</small>
+            </button>
+            <button class="layer-node" data-layer="网络层">
+              <span>3</span>
+              <strong>网络层</strong>
+              <small>寻址与路由</small>
+            </button>
+            <button class="layer-node" data-layer="数据链路层">
+              <span>2</span>
+              <strong>数据链路层</strong>
+              <small>局域网帧传输</small>
+            </button>
+            <button class="layer-node" data-layer="物理层">
+              <span>1</span>
+              <strong>物理层</strong>
+              <small>比特与信号</small>
+            </button>
+          </aside>
+          <div class="layer-content" id="layerContent">
+            <div class="layer-summary">
+              <p class="meta" id="layerOrder">第 5 层</p>
+              <h3 id="layerTitle">应用层</h3>
+              <p id="layerIntro"></p>
+              <dl class="layer-facts">
+                <div><dt>主要功能</dt><dd id="layerFunction"></dd></div>
+                <div><dt>常见协议/技术</dt><dd id="layerProtocols"></dd></div>
+                <div><dt>设备或数据单位</dt><dd id="layerUnits"></dd></div>
+                <div><dt>与相邻层关系</dt><dd id="layerRelation"></dd></div>
+              </dl>
+            </div>
+          </div>
+          <div class="knowledge-main">
+            <div class="knowledge-toolbar">
+              <strong id="knowledgeCount">知识点列表</strong>
+              <div class="knowledge-tools">
+                <input id="knowledgeSearch" placeholder="搜索知识点、协议或说明" />
+                <button id="exportKnowledge" type="button">导出 JSON</button>
+              </div>
+            </div>
+            <div id="knowledgeList" class="knowledge-list detailed"></div>
+            <form class="knowledge-form" id="knowledgeForm">
+              <input type="hidden" id="knowledgeId" />
+              <div class="form-head">
+                <strong id="formTitle">新增知识点</strong>
+                <button type="button" id="cancelEdit">取消编辑</button>
+              </div>
+              <div class="form-grid">
+                <label>
+                  所属层级
+                  <select id="formLayer"></select>
+                </label>
+                <label>
+                  标题
+                  <input id="formTitleInput" required placeholder="例如：HTTP" />
+                </label>
+                <label>
+                  类型
+                  <input id="formCategory" required placeholder="协议 / 设备 / 概念 / 机制" />
+                </label>
+                <label>
+                  设备或数据单位
+                  <input id="formUnit" placeholder="例如：报文、帧、比特" />
+                </label>
+              </div>
+              <label>
+                简要说明
+                <textarea id="formSummary" required rows="2" placeholder="用于列表快速理解的摘要"></textarea>
+              </label>
+              <label>
+                详细说明
+                <textarea id="formDetail" required rows="3" placeholder="写清楚工作原理、作用或典型场景"></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit" id="saveKnowledge">保存知识点</button>
+                <span id="knowledgeMessage" class="muted"></span>
+              </div>
+            </form>
+          </div>
+        </div>
+      </section>
+
+        <section class="section page-section" id="graph">
+          <h2>四、知识图谱</h2>
+          <p class="section-note">以 3D 关系网络呈现五层模型、协议、设备和技术之间的层次联系。</p>
+          <div class="graph-toolbar">
+            <div class="graph-actions">
+              <select id="graphDepth" aria-label="选择图谱显示层级">
+                <option value="3">显示三层</option>
+                <option value="2">显示两层</option>
+                <option value="1">仅看当前层</option>
+              </select>
+              <button id="resetGraph">重置</button>
+            </div>
+          </div>
+          <div class="graph-layout">
+            <div class="graph-canvas-wrap">
+              <div id="knowledgeGraph3d" aria-label="计算机网络 3D 知识图谱"></div>
+            </div>
+            <aside class="graph-detail">
+              <p class="meta" id="graphNodeType">等待选择</p>
+              <h3 id="graphNodeTitle">点击图谱节点查看详情</h3>
+              <p id="graphNodeSummary">可查看层级、协议、设备、技术、知识点之间的关系。</p>
+              <dl class="layer-facts compact">
+                <div><dt>所属层级</dt><dd id="graphNodeLayer">无</dd></div>
+                <div><dt>类型</dt><dd id="graphNodeCategory">无</dd></div>
+                <div><dt>数据单位</dt><dd id="graphNodeUnit">无</dd></div>
+                <div><dt>关系说明</dt><dd id="graphNodeRelation">无</dd></div>
+              </dl>
+            </aside>
+          </div>
+        </section>
+        <section class="section project-summary page-section" id="summary">
+          <h2>展示结论</h2>
+          <p>当前系统已覆盖课程要求中的协议动画、综合场景仿真、数据库知识库和知识图谱展示，可用于课堂汇报、答辩演示和后续功能扩展。</p>
+          <dl>
+            <div><dt>学生</dt><dd>2023011636 · 郭宇杰</dd></div>
+            <div><dt>实现方式</dt><dd>Python HTTP 服务 + SQLite + 原生 HTML/CSS/JS</dd></div>
+            <div><dt>运行地址</dt><dd>http://127.0.0.1:8000</dd></div>
+          </dl>
+        </section>
+      </main>
+    </div>
+
+    <script src="./vendor/three.min.js"></script>
+    <script src="./vendor/three-spritetext.min.js"></script>
+    <script src="./vendor/3d-force-graph.min.js"></script>
+    <script src="./app.js?v=20260605-knowledge-export"></script>
+  </body>
+</html>
