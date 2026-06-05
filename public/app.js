@@ -7,6 +7,7 @@ const autoplayTiming = {
 };
 let currentLayerIndex = 0;
 let currentSearch = "";
+let pendingGraphFocusId = null;
 
 const layerProfiles = {
   应用层: {
@@ -88,6 +89,7 @@ function renderKnowledge(items) {
           <div class="card-head">
             <span class="tag">${escapeHtml(item.layer)} · ${escapeHtml(item.category)}</span>
             <div class="card-actions">
+              <button type="button" data-action="graph" data-id="${item.id}">图谱查看</button>
               <button type="button" data-action="edit" data-id="${item.id}">编辑</button>
               <button type="button" data-action="delete" data-id="${item.id}">删除</button>
             </div>
@@ -104,6 +106,13 @@ function renderKnowledge(items) {
     button.addEventListener("click", () => {
       const item = items.find((entry) => String(entry.id) === button.dataset.id);
       fillKnowledgeForm(item);
+    });
+  });
+  knowledgeList.querySelectorAll("button[data-action='graph']").forEach((button) => {
+    button.addEventListener("click", () => {
+      window.location.hash = "#graph";
+      pendingGraphFocusId = button.dataset.id;
+      window.setTimeout(() => window.focusKnowledgeGraphItem?.(button.dataset.id), 160);
     });
   });
   knowledgeList.querySelectorAll("button[data-action='delete']").forEach((button) => {
@@ -160,6 +169,37 @@ async function exportKnowledgeJson() {
       button.textContent = originalText;
       button.disabled = false;
     }, 1600);
+  }
+}
+
+function highlightKnowledgeCard(title) {
+  window.setTimeout(() => {
+    const cards = [...document.querySelectorAll(".knowledge-card")];
+    const card = cards.find((item) => item.querySelector("h3")?.textContent === title);
+    if (!card) return;
+    card.classList.remove("linked-highlight");
+    card.getBoundingClientRect();
+    card.classList.add("linked-highlight");
+    card.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 350);
+}
+
+function openGraphNodeInKnowledge(node) {
+  if (!node || !node.layer || !layerOrder.includes(node.layer)) {
+    return;
+  }
+  window.location.hash = "#knowledge";
+  const layerIndex = layerOrder.indexOf(node.layer);
+  currentLayerIndex = layerIndex;
+  renderLayerProfile(node.layer);
+  setFormLayer(node.layer);
+  const searchInput = document.querySelector("#knowledgeSearch");
+  if (node.level === 2) {
+    searchInput.value = node.name;
+    loadKnowledge(node.layer, node.name).then(() => highlightKnowledgeCard(node.name));
+  } else {
+    searchInput.value = "";
+    loadKnowledge(node.layer);
   }
 }
 
@@ -716,6 +756,7 @@ async function saveKnowledge(event) {
     renderLayerProfile(currentLayer());
     document.querySelector("#knowledgeSearch").value = "";
     await loadKnowledge(currentLayer());
+    await window.refreshKnowledgeGraph?.();
     resetKnowledgeForm();
   } catch (error) {
     message.textContent = error.message;
@@ -728,6 +769,7 @@ async function deleteKnowledge(id) {
     await sendJson(`/api/knowledge/${id}`, "DELETE");
     message.textContent = "删除成功，数据库已更新";
     await loadKnowledge(currentLayer(), currentSearch);
+    await window.refreshKnowledgeGraph?.();
   } catch (error) {
     message.textContent = error.message;
   }
@@ -1752,6 +1794,7 @@ async function setupKnowledgeGraphStable() {
   const detailCategory = document.querySelector("#graphNodeCategory");
   const detailUnit = document.querySelector("#graphNodeUnit");
   const detailRelation = document.querySelector("#graphNodeRelation");
+  const graphToKnowledgeButton = document.querySelector("#graphToKnowledge");
   const depthSelect = document.querySelector("#graphDepth");
   const all = await fetchJson("/api/knowledge?page_size=50");
   const layerNodes = layerOrder.map((layer) => ({
@@ -2301,6 +2344,7 @@ async function setup3DKnowledgeGraph() {
   const detailCategory = document.querySelector("#graphNodeCategory");
   const detailUnit = document.querySelector("#graphNodeUnit");
   const detailRelation = document.querySelector("#graphNodeRelation");
+  const graphToKnowledgeButton = document.querySelector("#graphToKnowledge");
   const depthSelect = document.querySelector("#graphDepth");
 
   if (!window.ForceGraph3D || !window.SpriteText) {
@@ -2318,65 +2362,91 @@ async function setup3DKnowledgeGraph() {
     数据单位: "#818cf8",
     介质: "#94a3b8",
   };
-  const all = await fetchJson("/api/knowledge?page_size=50");
+  let graphItems = [];
   let selectedGraphNode = null;
   let highlightedNodeIds = new Set();
   let highlightedLinkIds = new Set();
-  const baseNodes = [
-    {
-      id: "root",
-      name: "计算机网络",
-      group: "root",
-      layer: "整体",
-      category: "知识体系",
-      unit: "TCP/IP 五层模型",
-      summary: "计算机网络由应用层、传输层、网络层、数据链路层、物理层协作完成通信。",
-      detail: "中心节点表示课程知识体系整体，向外连接五层模型，再连接协议、设备、技术、机制和概念。",
-      relation: "中心节点连接 TCP/IP 五层模型。",
-      level: 0,
-      color: "#facc15",
-    },
-  ];
-  const baseLinks = [];
+  let baseNodes = [];
+  let baseLinks = [];
 
-  layerOrder.forEach((layer) => {
-    const profile = layerProfiles[layer];
-    baseNodes.push({
-      id: `layer-${layer}`,
-      name: layer,
-      group: "layer",
-      layer,
-      category: "网络层级",
-      unit: profile.units,
-      summary: profile.intro,
-      detail: profile.function,
-      relation: profile.relation,
-      level: 1,
-      color: "#60a5fa",
-    });
-    baseLinks.push({ source: "root", target: `layer-${layer}`, label: "包含" });
-  });
+  function buildGraphData(items) {
+    const nodes = [
+      {
+        id: "root",
+        name: "计算机网络",
+        group: "root",
+        layer: "整体",
+        category: "知识体系",
+        unit: "TCP/IP 五层模型",
+        summary: "计算机网络由应用层、传输层、网络层、数据链路层、物理层协作完成通信。",
+        detail: "中心节点表示课程知识体系整体，向外连接五层模型，再连接协议、设备、技术、机制和概念。",
+        relation: "中心节点连接 TCP/IP 五层模型。",
+        level: 0,
+        color: "#facc15",
+      },
+    ];
+    const links = [];
 
-  all.items.forEach((item) => {
-    baseNodes.push({
-      id: `item-${item.id}`,
-      name: item.title,
-      group: item.category,
-      layer: item.layer,
-      category: item.category,
-      unit: item.device_or_unit || "无",
-      summary: item.summary,
-      detail: item.detail || item.summary,
-      relation: `${item.title} 属于 ${item.layer}，是该层中的 ${item.category} 知识点。`,
-      level: 2,
-      color: categoryColors[item.category] || "#cbd5e1",
+    layerOrder.forEach((layer) => {
+      const profile = layerProfiles[layer];
+      nodes.push({
+        id: `layer-${layer}`,
+        name: layer,
+        group: "layer",
+        layer,
+        category: "网络层级",
+        unit: profile.units,
+        summary: profile.intro,
+        detail: profile.function,
+        relation: profile.relation,
+        level: 1,
+        color: "#60a5fa",
+      });
+      links.push({ source: "root", target: `layer-${layer}`, label: "包含" });
     });
-    baseLinks.push({ source: `layer-${item.layer}`, target: `item-${item.id}`, label: item.category });
-  });
+
+    items.forEach((item) => {
+      nodes.push({
+        id: `item-${item.id}`,
+        name: item.title,
+        group: item.category,
+        layer: item.layer,
+        category: item.category,
+        unit: item.device_or_unit || "无",
+        summary: item.summary,
+        detail: item.detail || item.summary,
+        relation: `${item.title} 属于 ${item.layer}，是该层中的 ${item.category} 知识点。`,
+        level: 2,
+        color: categoryColors[item.category] || "#cbd5e1",
+      });
+      links.push({ source: `layer-${item.layer}`, target: `item-${item.id}`, label: item.category });
+    });
+
+    return { nodes, links };
+  }
+
+  async function reloadBaseGraphData() {
+    const all = await fetchJson("/api/knowledge?page_size=500");
+    graphItems = all.items;
+    const nextData = buildGraphData(graphItems);
+    baseNodes = nextData.nodes;
+    baseLinks = nextData.links;
+    selectedGraphNode = baseNodes.find((node) => node.id === selectedGraphNode?.id) || baseNodes[0];
+  }
+
+  await reloadBaseGraphData();
+
+  function graphWidth() {
+    return container.clientWidth || 1040;
+  }
+
+  function graphHeight() {
+    return container.clientHeight || 640;
+  }
 
   const Graph = ForceGraph3D()(container)
-    .width(container.clientWidth)
-    .height(container.clientHeight)
+    .width(graphWidth())
+    .height(graphHeight())
     .backgroundColor("#f8fafc")
     .nodeId("id")
     .nodeLabel((node) => `${node.name}<br>${node.category}<br>${node.summary}`)
@@ -2446,12 +2516,12 @@ async function setup3DKnowledgeGraph() {
         layerOrder.forEach((layer) => nodeIds.add(`layer-${layer}`));
       }
       if (Number(depth) >= 3) {
-        all.items.forEach((item) => nodeIds.add(`item-${item.id}`));
+        graphItems.forEach((item) => nodeIds.add(`item-${item.id}`));
       }
     } else if (selected.category === "网络层级") {
       nodeIds.add(selected.id);
       if (Number(depth) >= 2) {
-        all.items.filter((item) => item.layer === selected.layer).forEach((item) => nodeIds.add(`item-${item.id}`));
+        graphItems.filter((item) => item.layer === selected.layer).forEach((item) => nodeIds.add(`item-${item.id}`));
       }
       if (Number(depth) >= 3) {
         nodeIds.add("root");
@@ -2484,6 +2554,9 @@ async function setup3DKnowledgeGraph() {
     detailCategory.textContent = node.category;
     detailUnit.textContent = node.unit;
     detailRelation.textContent = node.relation;
+    graphToKnowledgeButton.disabled = !layerOrder.includes(node.layer);
+    graphToKnowledgeButton.textContent = node.level === 2 ? "查看知识库条目" : node.level === 1 ? "查看该层知识库" : "查看知识库";
+    graphToKnowledgeButton.onclick = () => openGraphNodeInKnowledge(node);
   }
 
   function focusNode(node) {
@@ -2522,13 +2595,53 @@ async function setup3DKnowledgeGraph() {
     const data = graphDataForDepth();
     highlightedNodeIds = new Set();
     highlightedLinkIds = new Set();
-    Graph.width(container.clientWidth);
-    Graph.height(container.clientHeight);
+    Graph.width(graphWidth());
+    Graph.height(graphHeight());
     Graph.graphData(data);
     setTimeout(() => {
       Graph.zoomToFit(900, 120);
     }, 900);
   }
+
+  function showCompleteGraph() {
+    highlightedNodeIds = new Set();
+    highlightedLinkIds = new Set();
+    Graph.width(graphWidth());
+    Graph.height(graphHeight());
+    Graph.graphData({
+      nodes: baseNodes,
+      links: baseLinks,
+    });
+  }
+
+  window.focusKnowledgeGraphItem = (itemId) => {
+    const node = baseNodes.find((item) => item.id === `item-${itemId}`);
+    if (!node) return;
+    pendingGraphFocusId = null;
+    selectedGraphNode = node;
+    depthSelect.value = "3";
+    showCompleteGraph();
+    window.setTimeout(() => {
+      const liveNode = Graph.graphData().nodes.find((item) => item.id === node.id) || node;
+      showDetail(node);
+      focusNode(liveNode);
+      highlightNeighborhood(node.id);
+    }, 950);
+  };
+
+  window.refreshKnowledgeGraph = async () => {
+    await reloadBaseGraphData();
+    applyDepth();
+    if (selectedGraphNode) {
+      showDetail(selectedGraphNode);
+    }
+  };
+
+  window.resizeKnowledgeGraph = () => {
+    Graph.width(graphWidth());
+    Graph.height(graphHeight());
+    window.setTimeout(() => Graph.zoomToFit(300, 120), 120);
+  };
 
   depthSelect.onchange = applyDepth;
   document.querySelector("#resetGraph").onclick = () => {
@@ -2542,10 +2655,11 @@ async function setup3DKnowledgeGraph() {
   showDetail(baseNodes[0]);
   selectedGraphNode = baseNodes[0];
   applyDepth();
+  if (pendingGraphFocusId) {
+    window.setTimeout(() => window.focusKnowledgeGraphItem?.(pendingGraphFocusId), 300);
+  }
   window.addEventListener("resize", () => {
-    Graph.width(container.clientWidth);
-    Graph.height(container.clientHeight);
-    Graph.zoomToFit(300, 120);
+    window.resizeKnowledgeGraph?.();
   });
 }
 
@@ -2555,8 +2669,31 @@ async function boot() {
   setupTcpDemo();
   setupScenarioFramework();
   setupKnowledgeLibrary();
-  await setup3DKnowledgeGraph();
   setupCatalogActiveState();
+
+  let graphReady = null;
+  function ensureGraphReady() {
+    if (!graphReady) {
+      graphReady = setup3DKnowledgeGraph().catch((error) => {
+        graphReady = null;
+        throw error;
+      });
+    }
+    return graphReady;
+  }
+
+  if ((window.location.hash || "#overview") === "#graph") {
+    await ensureGraphReady();
+  }
+  window.addEventListener("hashchange", () => {
+    if (window.location.hash === "#graph") {
+      ensureGraphReady()
+        .then(() => window.resizeKnowledgeGraph?.())
+        .catch((error) => {
+          document.querySelector("#knowledgeGraph3d").innerHTML = `<p class="muted graph-load-error">${escapeHtml(error.message)}</p>`;
+        });
+    }
+  });
 }
 
 boot().catch((error) => {

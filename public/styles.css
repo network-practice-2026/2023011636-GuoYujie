@@ -797,6 +797,14 @@ textarea {
   font-size: 13px;
 }
 
+.card-actions button[data-action="graph"],
+.graph-link-button {
+  border-color: rgba(37, 99, 235, 0.45);
+  background: var(--blue-soft);
+  color: var(--blue);
+  font-weight: 700;
+}
+
 .knowledge-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -828,6 +836,21 @@ textarea {
 
 .knowledge-card {
   padding: 13px;
+}
+
+.knowledge-card.linked-highlight {
+  animation: linkedCardHighlight 1400ms ease;
+}
+
+@keyframes linkedCardHighlight {
+  0% {
+    border-color: var(--blue);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18);
+  }
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
 }
 
 .card-head {
@@ -1442,6 +1465,16 @@ textarea {
   border-radius: 8px;
   background: #fbfcfe;
   padding: 18px;
+}
+
+.graph-link-button {
+  width: 100%;
+  margin-top: 12px;
+}
+
+.graph-link-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
 }
 
 .layer-facts.compact {

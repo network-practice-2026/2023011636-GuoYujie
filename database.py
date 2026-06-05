@@ -73,7 +73,7 @@ def list_layers():
 
 def list_knowledge(layer=None, q="", page=1, page_size=8):
     page = max(int(page), 1)
-    page_size = max(min(int(page_size), 50), 1)
+    page_size = max(min(int(page_size), 500), 1)
     offset = (page - 1) * page_size
     filters = []
     params = []
