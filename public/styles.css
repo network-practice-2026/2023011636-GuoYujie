@@ -94,6 +94,19 @@ h1 {
   font-weight: 700;
 }
 
+.english-toggle {
+  border-color: rgba(20, 125, 100, 0.35);
+  background: rgba(20, 125, 100, 0.08);
+  color: var(--green);
+  font-weight: 700;
+}
+
+.english-toggle.active {
+  border-color: var(--green);
+  background: rgba(20, 125, 100, 0.16);
+  color: var(--green);
+}
+
 .content {
   width: min(1180px, calc(100% - 32px));
   margin: 24px auto 48px;

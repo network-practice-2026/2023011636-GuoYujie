@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>计算机网络知识体系交互式展示系统</title>
-    <link rel="stylesheet" href="./styles.css?v=20260605-protocol-extra-v10" />
+    <link rel="stylesheet" href="./styles.css?v=20260608-english-toggle-v1" />
   </head>
   <body>
     <div class="app-shell">
@@ -403,6 +403,7 @@
             <p class="section-note">知识点以 SQLite 数据库存储，通过接口完成增删改查。</p>
           </div>
           <div class="layer-controls">
+            <button id="knowledgeEnglishToggle" class="english-toggle" type="button">显示英文</button>
             <button id="prevLayer">上一层</button>
             <button id="nextLayer">下一层</button>
           </div>
@@ -412,27 +413,27 @@
             <p class="tree-title">TCP/IP 五层模型</p>
             <button class="layer-node active" data-layer="应用层">
               <span>5</span>
-              <strong>应用层</strong>
+              <strong data-layer-label>应用层</strong>
               <small>面向用户应用</small>
             </button>
             <button class="layer-node" data-layer="传输层">
               <span>4</span>
-              <strong>传输层</strong>
+              <strong data-layer-label>传输层</strong>
               <small>端到端通信</small>
             </button>
             <button class="layer-node" data-layer="网络层">
               <span>3</span>
-              <strong>网络层</strong>
+              <strong data-layer-label>网络层</strong>
               <small>寻址与路由</small>
             </button>
             <button class="layer-node" data-layer="数据链路层">
               <span>2</span>
-              <strong>数据链路层</strong>
+              <strong data-layer-label>数据链路层</strong>
               <small>局域网帧传输</small>
             </button>
             <button class="layer-node" data-layer="物理层">
               <span>1</span>
-              <strong>物理层</strong>
+              <strong data-layer-label>物理层</strong>
               <small>比特与信号</small>
             </button>
           </aside>
@@ -504,6 +505,7 @@
           <p class="section-note">以 3D 关系网络呈现五层模型、协议、设备和技术之间的层次联系。</p>
           <div class="graph-toolbar">
             <div class="graph-actions">
+              <button id="graphEnglishToggle" class="english-toggle" type="button">显示英文</button>
               <select id="graphDepth" aria-label="选择图谱显示层级">
                 <option value="3">显示三层</option>
                 <option value="2">显示两层</option>
@@ -545,6 +547,6 @@
     <script src="./vendor/three.min.js"></script>
     <script src="./vendor/three-spritetext.min.js"></script>
     <script src="./vendor/3d-force-graph.min.js"></script>
-    <script src="./app.js?v=20260605-protocol-extra-v10"></script>
+    <script src="./app.js?v=20260608-english-toggle-v1"></script>
   </body>
 </html>

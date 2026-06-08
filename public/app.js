@@ -10,6 +10,62 @@ const autoplayTiming = {
 let currentLayerIndex = 0;
 let currentSearch = "";
 let pendingGraphFocusId = null;
+let showEnglish = false;
+
+const englishTerms = {
+  计算机网络: "Computer Network",
+  应用层: "Application Layer",
+  传输层: "Transport Layer",
+  网络层: "Network Layer",
+  数据链路层: "Data Link Layer",
+  物理层: "Physical Layer",
+  协议: "Protocol",
+  设备: "Device",
+  技术: "Technology",
+  机制: "Mechanism",
+  概念: "Concept",
+  数据结构: "Data Structure",
+  数据单位: "Data Unit",
+  介质: "Medium",
+  HTTP: "HyperText Transfer Protocol",
+  HTTPS: "HyperText Transfer Protocol Secure",
+  DNS: "Domain Name System",
+  FTP: "File Transfer Protocol",
+  SMTP: "Simple Mail Transfer Protocol",
+  DHCP: "Dynamic Host Configuration Protocol",
+  WebSocket: "WebSocket",
+  TCP: "Transmission Control Protocol",
+  UDP: "User Datagram Protocol",
+  IP: "Internet Protocol",
+  ICMP: "Internet Control Message Protocol",
+  ARP: "Address Resolution Protocol",
+  NAT: "Network Address Translation",
+  Ethernet: "Ethernet",
+  VLAN: "Virtual Local Area Network",
+  PPP: "Point-to-Point Protocol",
+  "Socket 编程接口": "Socket Programming Interface",
+  端口号: "Port Number",
+  滑动窗口: "Sliding Window",
+  拥塞控制: "Congestion Control",
+  三次握手: "Three-way Handshake",
+  四次挥手: "Four-way Termination",
+  "IPv4 地址": "IPv4 Address",
+  "IPv6 地址": "IPv6 Address",
+  路由器: "Router",
+  路由表: "Routing Table",
+  以太网帧: "Ethernet Frame",
+  "MAC 地址": "MAC Address",
+  交换机: "Switch",
+  "MAC 地址表": "MAC Address Table",
+  差错检测: "Error Detection",
+  比特流: "Bit Stream",
+  双绞线: "Twisted Pair",
+  光纤: "Optical Fiber",
+  无线信道: "Wireless Channel",
+  集线器: "Hub",
+  带宽: "Bandwidth",
+  编码与调制: "Encoding and Modulation",
+};
 
 const layerProfiles = {
   应用层: {
@@ -83,23 +139,51 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
+function withEnglish(value) {
+  const text = String(value || "");
+  const english = englishTerms[text];
+  return showEnglish && english ? `${text}（${english}）` : text;
+}
+
+function annotateEnglishText(value) {
+  let text = String(value || "");
+  if (!showEnglish) return text;
+  Object.entries(englishTerms)
+    .sort((a, b) => b[0].length - a[0].length)
+    .forEach(([chinese, english]) => {
+      const escaped = chinese.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      text = text.replace(new RegExp(escaped, "g"), (match, offset, source) => {
+        const next = source.slice(offset + match.length, offset + match.length + english.length + 2);
+        return next === `（${english}）` ? match : `${match}（${english}）`;
+      });
+    });
+  return text;
+}
+
+function updateEnglishToggleButtons() {
+  document.querySelectorAll(".english-toggle").forEach((button) => {
+    button.textContent = showEnglish ? "隐藏英文" : "显示英文";
+    button.classList.toggle("active", showEnglish);
+  });
+}
+
 function renderKnowledge(items) {
   knowledgeList.innerHTML = items
     .map(
       (item) => `
         <article class="knowledge-card">
           <div class="card-head">
-            <span class="tag">${escapeHtml(item.layer)} · ${escapeHtml(item.category)}</span>
+            <span class="tag">${escapeHtml(withEnglish(item.layer))} · ${escapeHtml(withEnglish(item.category))}</span>
             <div class="card-actions">
               <button type="button" data-action="graph" data-id="${item.id}">图谱查看</button>
               <button type="button" data-action="edit" data-id="${item.id}">编辑</button>
               <button type="button" data-action="delete" data-id="${item.id}">删除</button>
             </div>
           </div>
-          <h3>${escapeHtml(item.title)}</h3>
-          <p>${escapeHtml(item.summary)}</p>
-          <p>${escapeHtml(item.detail)}</p>
-          <p class="muted">设备或数据单位：${escapeHtml(item.device_or_unit || "无")}</p>
+          <h3>${escapeHtml(withEnglish(item.title))}</h3>
+          <p>${escapeHtml(annotateEnglishText(item.summary))}</p>
+          <p>${escapeHtml(annotateEnglishText(item.detail))}</p>
+          <p class="muted">设备或数据单位：${escapeHtml(withEnglish(item.device_or_unit || "无"))}</p>
         </article>
       `
     )
@@ -128,7 +212,7 @@ async function loadKnowledge(layer, q = "") {
   const encodedQuery = encodeURIComponent(q);
   const data = await fetchJson(`/api/knowledge?layer=${encodedLayer}&q=${encodedQuery}&page_size=50`);
   renderKnowledge(data.items);
-  document.querySelector("#knowledgeCount").textContent = `${layer}知识点：${data.total} 条`;
+  document.querySelector("#knowledgeCount").textContent = `${withEnglish(layer)}知识点：${data.total} 条`;
 }
 
 async function exportKnowledgeJson() {
@@ -177,7 +261,7 @@ async function exportKnowledgeJson() {
 function highlightKnowledgeCard(title) {
   window.setTimeout(() => {
     const cards = [...document.querySelectorAll(".knowledge-card")];
-    const card = cards.find((item) => item.querySelector("h3")?.textContent === title);
+    const card = cards.find((item) => item.querySelector("h3")?.textContent === withEnglish(title));
     if (!card) return;
     card.classList.remove("linked-highlight");
     card.getBoundingClientRect();
@@ -197,8 +281,9 @@ function openGraphNodeInKnowledge(node) {
   setFormLayer(node.layer);
   const searchInput = document.querySelector("#knowledgeSearch");
   if (node.level === 2) {
-    searchInput.value = node.name;
-    loadKnowledge(node.layer, node.name).then(() => highlightKnowledgeCard(node.name));
+    const rawTitle = node.rawName || node.name;
+    searchInput.value = rawTitle;
+    loadKnowledge(node.layer, rawTitle).then(() => highlightKnowledgeCard(rawTitle));
   } else {
     searchInput.value = "";
     loadKnowledge(node.layer);
@@ -216,14 +301,15 @@ function renderLayerProfile(layer, direction = "down") {
   content.getBoundingClientRect();
   content.classList.add(direction === "up" ? "slide-up" : "slide-down");
   document.querySelector("#layerOrder").textContent = profile.order;
-  document.querySelector("#layerTitle").textContent = layer;
+  document.querySelector("#layerTitle").textContent = withEnglish(layer);
   document.querySelector("#layerIntro").textContent = profile.intro;
   document.querySelector("#layerFunction").textContent = profile.function;
-  document.querySelector("#layerProtocols").textContent = profile.protocols;
-  document.querySelector("#layerUnits").textContent = profile.units;
-  document.querySelector("#layerRelation").textContent = profile.relation;
+  document.querySelector("#layerProtocols").textContent = annotateEnglishText(profile.protocols);
+  document.querySelector("#layerUnits").textContent = annotateEnglishText(profile.units);
+  document.querySelector("#layerRelation").textContent = annotateEnglishText(profile.relation);
   document.querySelectorAll(".layer-node").forEach((node) => {
     node.classList.toggle("active", node.dataset.layer === layer);
+    node.querySelector("[data-layer-label]").textContent = withEnglish(node.dataset.layer);
   });
 }
 
@@ -240,10 +326,29 @@ function switchLayer(nextIndex) {
   loadKnowledge(layer);
 }
 
-function setupKnowledgeLibrary() {
+function refreshFormLayerOptions() {
+  const selectedFormLayer = document.querySelector("#formLayer").value || currentLayer();
   document.querySelector("#formLayer").innerHTML = layerOrder
-    .map((layer) => `<option value="${layer}">${layer}</option>`)
+    .map((layer) => `<option value="${layer}">${withEnglish(layer)}</option>`)
     .join("");
+  document.querySelector("#formLayer").value = selectedFormLayer;
+}
+
+function refreshEnglishDisplay() {
+  refreshFormLayerOptions();
+  renderLayerProfile(currentLayer());
+  loadKnowledge(currentLayer(), currentSearch);
+  updateEnglishToggleButtons();
+  window.refreshKnowledgeGraph?.();
+}
+
+function toggleEnglishDisplay() {
+  showEnglish = !showEnglish;
+  refreshEnglishDisplay();
+}
+
+function setupKnowledgeLibrary() {
+  refreshFormLayerOptions();
   document.querySelectorAll(".layer-node").forEach((node) => {
     node.addEventListener("click", () => {
       switchLayer(layerOrder.indexOf(node.dataset.layer));
@@ -257,9 +362,12 @@ function setupKnowledgeLibrary() {
   document.querySelector("#knowledgeForm").addEventListener("submit", saveKnowledge);
   document.querySelector("#cancelEdit").addEventListener("click", resetKnowledgeForm);
   document.querySelector("#exportKnowledge").addEventListener("click", exportKnowledgeJson);
+  document.querySelector("#knowledgeEnglishToggle").addEventListener("click", toggleEnglishDisplay);
+  document.querySelector("#graphEnglishToggle").addEventListener("click", toggleEnglishDisplay);
   renderLayerProfile(currentLayer());
   setFormLayer(currentLayer());
   loadKnowledge(currentLayer());
+  updateEnglishToggleButtons();
 }
 
 function setupCatalogActiveState() {
@@ -2779,7 +2887,8 @@ async function setup3DKnowledgeGraph() {
     const nodes = [
       {
         id: "root",
-        name: "计算机网络",
+        name: withEnglish("计算机网络"),
+        rawName: "计算机网络",
         group: "root",
         layer: "整体",
         category: "知识体系",
@@ -2797,11 +2906,12 @@ async function setup3DKnowledgeGraph() {
       const profile = layerProfiles[layer];
       nodes.push({
         id: `layer-${layer}`,
-        name: layer,
+        name: withEnglish(layer),
+        rawName: layer,
         group: "layer",
         layer,
         category: "网络层级",
-        unit: profile.units,
+        unit: annotateEnglishText(profile.units),
         summary: profile.intro,
         detail: profile.function,
         relation: profile.relation,
@@ -2814,14 +2924,15 @@ async function setup3DKnowledgeGraph() {
     items.forEach((item) => {
       nodes.push({
         id: `item-${item.id}`,
-        name: item.title,
+        name: withEnglish(item.title),
+        rawName: item.title,
         group: item.category,
         layer: item.layer,
         category: item.category,
-        unit: item.device_or_unit || "无",
-        summary: item.summary,
-        detail: item.detail || item.summary,
-        relation: `${item.title} 属于 ${item.layer}，是该层中的 ${item.category} 知识点。`,
+        unit: withEnglish(item.device_or_unit || "无"),
+        summary: annotateEnglishText(item.summary),
+        detail: annotateEnglishText(item.detail || item.summary),
+        relation: `${withEnglish(item.title)} 属于 ${withEnglish(item.layer)}，是该层中的 ${withEnglish(item.category)} 知识点。`,
         level: 2,
         color: categoryColors[item.category] || "#cbd5e1",
       });
@@ -2855,20 +2966,20 @@ async function setup3DKnowledgeGraph() {
     .height(graphHeight())
     .backgroundColor("#f8fafc")
     .nodeId("id")
-    .nodeLabel((node) => `${node.name}<br>${node.category}<br>${node.summary}`)
+    .nodeLabel((node) => `${node.name}<br>${withEnglish(node.category)}<br>${node.summary}`)
     .nodeColor((node) => {
       if (highlightedNodeIds.size === 0) return node.color;
       return highlightedNodeIds.has(node.id) ? node.color : "#cbd5e1";
     })
     .nodeRelSize(6)
-    .linkLabel((link) => link.label)
+    .linkLabel((link) => withEnglish(link.label))
     .linkColor(() => "rgba(37, 99, 235, 0.32)")
     .linkWidth((link) => (highlightedLinkIds.has(linkId(link)) ? 3.2 : 1.2))
     .linkDirectionalParticles((link) => (highlightedLinkIds.has(linkId(link)) ? 4 : 1))
     .linkDirectionalParticleWidth((link) => (highlightedLinkIds.has(linkId(link)) ? 3 : 1.4))
     .linkThreeObjectExtend(true)
     .linkThreeObject((link) => {
-      const sprite = new SpriteText(link.label);
+      const sprite = new SpriteText(withEnglish(link.label));
       sprite.color = "#2563eb";
       sprite.textHeight = 4;
       sprite.backgroundColor = "rgba(255,255,255,0.78)";
@@ -2953,11 +3064,11 @@ async function setup3DKnowledgeGraph() {
   }
 
   function showDetail(node) {
-    detailType.textContent = node.category;
+    detailType.textContent = withEnglish(node.category);
     detailTitle.textContent = node.name;
     detailSummary.textContent = node.detail || node.summary;
-    detailLayer.textContent = node.layer;
-    detailCategory.textContent = node.category;
+    detailLayer.textContent = withEnglish(node.layer);
+    detailCategory.textContent = withEnglish(node.category);
     detailUnit.textContent = node.unit;
     detailRelation.textContent = node.relation;
     graphToKnowledgeButton.disabled = !layerOrder.includes(node.layer);
