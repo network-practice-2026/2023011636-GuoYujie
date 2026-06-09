@@ -3147,8 +3147,29 @@ async function setup3DKnowledgeGraph() {
   };
 
   window.refreshKnowledgeGraph = async () => {
+    const currentData = Graph.graphData();
+    const currentNodeIds = new Set(currentData.nodes.map((node) => node.id));
+    const wasShowingCompleteGraph = currentNodeIds.size === baseNodes.length;
+    const previousHighlightedNodeIds = new Set(highlightedNodeIds);
+    const previousHighlightedLinkIds = new Set(highlightedLinkIds);
     await reloadBaseGraphData();
-    applyDepth();
+    highlightedNodeIds = new Set([...previousHighlightedNodeIds].filter((id) => baseNodes.some((node) => node.id === id)));
+    highlightedLinkIds = new Set([...previousHighlightedLinkIds].filter((id) => {
+      return baseLinks.some((link) => linkId(link) === id);
+    }));
+    const nextData = wasShowingCompleteGraph
+      ? { nodes: baseNodes, links: baseLinks }
+      : {
+          nodes: baseNodes.filter((node) => currentNodeIds.has(node.id)),
+          links: baseLinks.filter((link) => {
+            const source = typeof link.source === "object" ? link.source.id : link.source;
+            const target = typeof link.target === "object" ? link.target.id : link.target;
+            return currentNodeIds.has(source) && currentNodeIds.has(target);
+          }),
+        };
+    Graph.width(graphWidth());
+    Graph.height(graphHeight());
+    Graph.graphData(nextData.nodes.length ? nextData : graphDataForDepth());
     if (selectedGraphNode) {
       showDetail(selectedGraphNode);
     }
