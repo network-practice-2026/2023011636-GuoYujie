@@ -1809,6 +1809,7 @@ function setupTcpDemo() {
   const logTable = document.querySelector("#tcpLogTable");
   const connectButton = document.querySelector("#tcpConnect");
   const closeButton = document.querySelector("#tcpClose");
+  const tcpNextButton = document.querySelector("#tcpNext");
   const tcpAutoButton = document.querySelector("#tcpAuto");
 
   const connectSteps = [
@@ -1869,6 +1870,8 @@ function setupTcpDemo() {
     logTable.innerHTML = "";
     result.textContent = mode === "connect" ? "连接结果：已选择建立连接" : "连接结果：已选择释放连接";
     result.classList.remove("success");
+    tcpNextButton.disabled = false;
+    tcpAutoButton.disabled = false;
     connectButton.classList.toggle("active", mode === "connect");
     closeButton.classList.toggle("active", mode === "close");
     title.textContent = mode === "connect" ? "准备建立 TCP 连接" : "准备释放 TCP 连接";
@@ -1881,7 +1884,9 @@ function setupTcpDemo() {
 
   function next() {
     if (sequence.length === 0) {
-      sequence = connectSteps;
+      result.textContent = "连接结果：请先选择建立连接或释放连接";
+      result.classList.remove("success");
+      return;
     }
     if (index >= sequence.length - 1) {
       stopTcpAutoplay();
@@ -1901,6 +1906,8 @@ function setupTcpDemo() {
     text.textContent = "点击建立连接或释放连接，然后逐步查看 SYN、ACK、FIN 报文与状态变化。";
     result.textContent = "连接结果：等待操作";
     result.classList.remove("success");
+    tcpNextButton.disabled = true;
+    tcpAutoButton.disabled = true;
     logTable.innerHTML = "";
     packet.classList.remove("visible");
     wire.classList.remove("active");
@@ -1926,15 +1933,16 @@ function setupTcpDemo() {
       stopTcpAutoplay();
       return;
     }
-    if (sequence.length === 0 || index >= sequence.length - 1) {
-      if (sequence.length === 0) {
-        start(connectSteps, "connect");
-      } else {
-        index = -1;
-        logTable.innerHTML = "";
-        result.textContent = "连接结果：执行中";
-        result.classList.remove("success");
-      }
+    if (sequence.length === 0) {
+      result.textContent = "连接结果：请先选择建立连接或释放连接";
+      result.classList.remove("success");
+      return;
+    }
+    if (index >= sequence.length - 1) {
+      index = -1;
+      logTable.innerHTML = "";
+      result.textContent = "连接结果：执行中";
+      result.classList.remove("success");
       next();
     }
     tcpAutoButton.textContent = "暂停播放";
@@ -1944,7 +1952,7 @@ function setupTcpDemo() {
 
   connectButton.addEventListener("click", () => start(connectSteps, "connect"));
   closeButton.addEventListener("click", () => start(closeSteps, "close"));
-  document.querySelector("#tcpNext").addEventListener("click", () => {
+  tcpNextButton.addEventListener("click", () => {
     stopTcpAutoplay();
     next();
   });
