@@ -447,6 +447,7 @@ button.active {
 .link.active,
 .tcp-wire.active {
   background: var(--green);
+  box-shadow: 0 0 0 4px rgba(20, 125, 100, 0.12);
 }
 
 .link.active::after,
@@ -605,12 +606,12 @@ th {
 
 .tcp-wire {
   position: relative;
-  overflow: hidden;
   height: 5px;
   background: #b9c4d0;
 }
 
 .tcp-message {
+  z-index: 2;
   top: calc(50% - 17px);
   left: 0;
 }
