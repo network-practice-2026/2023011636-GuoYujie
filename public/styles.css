@@ -438,6 +438,8 @@ button.active {
 }
 
 .link {
+  position: relative;
+  overflow: hidden;
   height: 4px;
   background: #b9c4d0;
 }
@@ -445,6 +447,15 @@ button.active {
 .link.active,
 .tcp-wire.active {
   background: var(--green);
+}
+
+.link.active::after,
+.tcp-wire.active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: protocolFlow 850ms linear infinite;
 }
 
 .packet,
@@ -489,6 +500,24 @@ button.active {
   100% {
     transform: scale(1);
     box-shadow: 0 0 0 0 rgba(20, 125, 100, 0);
+  }
+}
+
+@keyframes protocolFlow {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(100%);
+  }
+}
+
+@keyframes protocolFlowVertical {
+  from {
+    transform: translateY(-100%);
+  }
+  to {
+    transform: translateY(100%);
   }
 }
 
@@ -576,6 +605,7 @@ th {
 
 .tcp-wire {
   position: relative;
+  overflow: hidden;
   height: 5px;
   background: #b9c4d0;
 }
@@ -1880,6 +1910,11 @@ textarea {
     width: 4px;
     height: 28px;
     justify-self: center;
+  }
+
+  .link.active::after {
+    background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+    animation-name: protocolFlowVertical;
   }
 
   h1 {
