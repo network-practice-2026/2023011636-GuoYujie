@@ -84,7 +84,7 @@
         <div class="protocol-tabs">
           <button class="tab active" data-protocol="dns">DNS 域名解析</button>
           <button class="tab" data-protocol="tcp">TCP 连接管理</button>
-          <button class="tab" data-protocol="arp">ARP 地址解析</button>
+          <button class="tab" data-protocol="arp" hidden>ARP 地址解析</button>
           <button class="tab" data-protocol="switching">交换机转发</button>
         </div>
 
@@ -237,7 +237,7 @@
           </div>
         </article>
 
-        <article class="protocol-panel" id="arpPanel">
+        <article class="protocol-panel" id="arpPanel" hidden>
           <div class="control-row">
             <button id="arpStart">开始解析</button>
             <button id="arpNext">下一步</button>
