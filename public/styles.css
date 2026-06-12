@@ -540,6 +540,162 @@ button.active {
   background: #fbfcfe;
 }
 
+.dns-variant {
+  margin-top: 18px;
+  padding-top: 18px;
+  border-top: 1px dashed var(--line);
+}
+
+.variant-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+
+.variant-head h3,
+.variant-head p {
+  margin-bottom: 0;
+}
+
+.variant-head p {
+  margin-top: 6px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.control-row.compact {
+  justify-content: flex-end;
+  margin-bottom: 0;
+}
+
+.routed-dns-stage {
+  position: relative;
+  min-height: 340px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background:
+    linear-gradient(90deg, rgba(37, 99, 235, 0.06) 0 49%, transparent 49% 51%, rgba(20, 125, 100, 0.06) 51% 100%),
+    linear-gradient(180deg, #ffffff, #f4f8fb);
+  overflow: hidden;
+}
+
+.subnet-label {
+  position: absolute;
+  top: 18px;
+  z-index: 2;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.subnet-label.client-net {
+  left: 28px;
+}
+
+.subnet-label.dns-net {
+  right: 28px;
+}
+
+.rdns-node {
+  position: absolute;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  gap: 4px;
+  width: 142px;
+  min-height: 88px;
+  padding: 10px;
+  border: 2px solid #9fb2ca;
+  border-radius: 8px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+}
+
+.rdns-node span,
+.rdns-node small {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.rdns-node.active {
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.12);
+}
+
+.rdns-node.broadcast {
+  border-color: var(--amber);
+  box-shadow: 0 0 0 4px rgba(161, 92, 7, 0.12);
+}
+
+.rdns-node.client {
+  left: 5%;
+  top: 128px;
+}
+
+.rdns-node.router {
+  left: 31%;
+  top: 128px;
+}
+
+.rdns-node.dns {
+  left: 57%;
+  top: 128px;
+}
+
+.rdns-node.authority {
+  right: 5%;
+  top: 36px;
+}
+
+.rdns-line {
+  position: absolute;
+  z-index: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: #b9c4d0;
+  overflow: hidden;
+}
+
+.rdns-line.active {
+  background: var(--green);
+  box-shadow: 0 0 0 4px rgba(20, 125, 100, 0.12);
+}
+
+.rdns-line.active::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.7), transparent);
+  animation: protocolFlow 850ms linear infinite;
+}
+
+.rdns-line.client-router {
+  left: calc(5% + 142px);
+  top: 172px;
+  width: calc(26% - 142px);
+}
+
+.rdns-line.router-dns {
+  left: calc(31% + 142px);
+  top: 172px;
+  width: calc(26% - 142px);
+}
+
+.rdns-line.dns-authority {
+  right: calc(5% + 72px);
+  top: 124px;
+  width: 118px;
+  transform: rotate(-34deg);
+  transform-origin: right center;
+}
+
+.rdns-packet {
+  z-index: 5;
+}
+
 .result-box {
   margin-bottom: 14px;
   padding: 11px 12px;
@@ -1883,6 +2039,14 @@ textarea {
     flex-direction: column;
   }
 
+  .variant-head {
+    flex-direction: column;
+  }
+
+  .control-row.compact {
+    justify-content: flex-start;
+  }
+
   .knowledge-toolbar {
     align-items: flex-start;
     flex-direction: column;
@@ -1927,6 +2091,32 @@ textarea {
   .link.active::after {
     background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.7), transparent);
     animation-name: protocolFlowVertical;
+  }
+
+  .routed-dns-stage {
+    display: grid;
+    gap: 12px;
+    min-height: auto;
+    padding: 52px 18px 18px;
+  }
+
+  .subnet-label,
+  .subnet-label.client-net,
+  .subnet-label.dns-net,
+  .rdns-node,
+  .rdns-node.client,
+  .rdns-node.router,
+  .rdns-node.dns,
+  .rdns-node.authority {
+    position: static;
+  }
+
+  .rdns-node {
+    width: 100%;
+  }
+
+  .rdns-line {
+    display: none;
   }
 
   h1 {

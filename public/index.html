@@ -125,6 +125,71 @@
               </table>
             </div>
           </div>
+          <div class="dns-variant">
+            <div class="variant-head">
+              <div>
+                <h3>改版演示：客户端与本地 DNS 不同网段</h3>
+                <p>客户端访问跨网段的本地域名服务器时，需要先把 DNS 查询交给默认网关，再由路由器转发到 DNS 所在网段。</p>
+              </div>
+              <div class="control-row compact">
+                <button id="routedDnsStart">开始</button>
+                <button id="routedDnsNext">下一步</button>
+                <button id="routedDnsAuto">自动播放</button>
+                <button id="routedDnsReset">重置</button>
+                <button id="routedDnsClearCache">清空缓存</button>
+              </div>
+            </div>
+            <div class="visual-layout">
+              <div class="routed-dns-stage" id="routedDnsStage">
+                <div class="subnet-label client-net">客户端网段 10.0.1.0/24</div>
+                <div class="subnet-label dns-net">DNS 网段 10.0.2.0/24</div>
+                <div class="rdns-node client" data-rdns-node="client">
+                  <strong>客户端</strong>
+                  <span>10.0.1.10</span>
+                  <small>MAC C1</small>
+                </div>
+                <div class="rdns-node router" data-rdns-node="router">
+                  <strong>路由器 R</strong>
+                  <span>10.0.1.1 / 10.0.2.1</span>
+                  <small>默认网关</small>
+                </div>
+                <div class="rdns-node dns" data-rdns-node="dns">
+                  <strong>本地 DNS</strong>
+                  <span>10.0.2.53</span>
+                  <small>MAC D1</small>
+                </div>
+                <div class="rdns-node authority" data-rdns-node="authority">
+                  <strong>根/权威 DNS</strong>
+                  <span>203.0.113.53</span>
+                  <small>外部解析</small>
+                </div>
+                <div class="rdns-line client-router" data-rdns-path="client-router"></div>
+                <div class="rdns-line router-dns" data-rdns-path="router-dns"></div>
+                <div class="rdns-line dns-authority" data-rdns-path="dns-authority"></div>
+                <div class="packet rdns-packet" id="routedDnsPacket">DNS</div>
+              </div>
+              <div class="side-panel">
+                <div class="result-box" id="routedDnsResult">改版结果：等待开始</div>
+                <h3 id="routedDnsStepTitle">等待开始</h3>
+                <p id="routedDnsStepText">点击开始后，按步骤观察跨网段 DNS 查询中的网关 ARP、路由转发和递归解析过程。</p>
+                <dl class="kv-list">
+                  <div><dt>当前协议</dt><dd id="routedDnsProtocol">无</dd></div>
+                  <div><dt>通信方式</dt><dd id="routedDnsCast">无</dd></div>
+                  <div><dt>缓存状态</dt><dd id="routedDnsCacheStatus">未查询</dd></div>
+                  <div><dt>二层目的</dt><dd id="routedDnsL2Target">无</dd></div>
+                  <div><dt>三层目的</dt><dd id="routedDnsL3Target">无</dd></div>
+                </dl>
+                <table>
+                  <thead><tr><th>DNS 缓存域名</th><th>IP 地址</th></tr></thead>
+                  <tbody id="routedDnsCacheTable"></tbody>
+                </table>
+                <table>
+                  <thead><tr><th>客户端 ARP 表</th><th>MAC</th></tr></thead>
+                  <tbody id="routedDnsArpTable"></tbody>
+                </table>
+              </div>
+            </div>
+          </div>
         </article>
 
         <article class="protocol-panel" id="tcpPanel">

@@ -1791,6 +1791,377 @@ function setupDnsDemo() {
   resetVisual();
 }
 
+function setupRoutedDnsDemo() {
+  let index = -1;
+  let activeSteps = [];
+  let timer = null;
+  let cache = [{ domain: "school.example", ip: "198.51.100.8" }];
+  const stage = document.querySelector("#routedDnsStage");
+  const packet = document.querySelector("#routedDnsPacket");
+  const title = document.querySelector("#routedDnsStepTitle");
+  const text = document.querySelector("#routedDnsStepText");
+  const result = document.querySelector("#routedDnsResult");
+  const protocol = document.querySelector("#routedDnsProtocol");
+  const cast = document.querySelector("#routedDnsCast");
+  const cacheStatus = document.querySelector("#routedDnsCacheStatus");
+  const l2Target = document.querySelector("#routedDnsL2Target");
+  const l3Target = document.querySelector("#routedDnsL3Target");
+  const cacheTable = document.querySelector("#routedDnsCacheTable");
+  const arpTable = document.querySelector("#routedDnsArpTable");
+  const domainInput = document.querySelector("#dnsDomain");
+  const autoButton = document.querySelector("#routedDnsAuto");
+  const nodes = stage.querySelectorAll("[data-rdns-node]");
+  const paths = stage.querySelectorAll("[data-rdns-path]");
+  function missSteps(domain) {
+    return [
+    {
+      title: "步骤 1：客户端判断 DNS 服务器不在本网段",
+      text: `客户端 10.0.1.10 要查询 ${domain}，配置的本地 DNS 为 10.0.2.53。两者不在同一 /24 网段，因此客户端不能直接用 DNS 服务器的 MAC 发帧。`,
+      protocol: "本地判断",
+      cast: "本机检查",
+      cacheStatus: "未查询",
+      l2: "默认网关待解析",
+      l3: "本地 DNS 10.0.2.53",
+      route: ["client"],
+      paths: [],
+      active: ["client"],
+      arp: [],
+      label: "检查",
+    },
+    {
+      title: "步骤 2：客户端 ARP 查询默认网关 MAC",
+      text: "跨网段通信必须先交给默认网关。客户端广播 ARP Request：谁是 10.0.1.1？请告诉 10.0.1.10。",
+      protocol: "ARP",
+      cast: "广播",
+      cacheStatus: "未查询",
+      l2: "ff-ff-ff-ff-ff-ff",
+      l3: "默认网关 10.0.1.1",
+      route: ["client", "router"],
+      paths: ["client-router"],
+      active: ["client", "router"],
+      broadcast: ["router"],
+      arp: [],
+      label: "ARP",
+    },
+    {
+      title: "步骤 3：路由器返回 ARP 应答",
+      text: "路由器 R 用单播 ARP Reply 告诉客户端：10.0.1.1 对应网关接口 MAC R1。客户端写入 ARP 缓存。",
+      protocol: "ARP",
+      cast: "单播",
+      cacheStatus: "未查询",
+      l2: "客户端 MAC C1",
+      l3: "客户端 10.0.1.10",
+      route: ["router", "client"],
+      paths: ["client-router"],
+      active: ["router", "client"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "Reply",
+    },
+    {
+      title: "步骤 4：客户端把 DNS Query 发给默认网关",
+      text: "DNS 查询报文的三层目的 IP 仍是 10.0.2.53，但以太网帧的二层目的 MAC 是默认网关 R1。",
+      protocol: "DNS / UDP",
+      cast: "单播",
+      cacheStatus: "查询中",
+      l2: "默认网关 MAC R1",
+      l3: "本地 DNS 10.0.2.53",
+      route: ["client", "router"],
+      paths: ["client-router"],
+      active: ["client", "router"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "Query",
+    },
+    {
+      title: "步骤 5：路由器转发 DNS Query 到 DNS 网段",
+      text: "路由器根据路由表发现 10.0.2.53 位于 DNS 网段，在 10.0.2.0/24 接口重新封装以太网帧并转发给本地 DNS。",
+      protocol: "路由转发",
+      cast: "单播",
+      cacheStatus: "查询中",
+      l2: "本地 DNS MAC D1",
+      l3: "本地 DNS 10.0.2.53",
+      route: ["router", "dns"],
+      paths: ["router-dns"],
+      active: ["router", "dns"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "转发",
+    },
+    {
+      title: "步骤 6：本地 DNS 向权威 DNS 查询",
+      text: `本地 DNS 没有 ${domain} 缓存时，继续向外部根/权威 DNS 查询，并得到 203.0.113.10。`,
+      protocol: "DNS",
+      cast: "单播",
+      cacheStatus: "缓存未命中",
+      l2: "外部下一跳",
+      l3: "权威 DNS 203.0.113.53",
+      route: ["dns", "authority"],
+      paths: ["dns-authority"],
+      active: ["dns", "authority"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "递归",
+    },
+    {
+      title: "步骤 7：本地 DNS 经路由器返回解析结果",
+      text: `本地 DNS 写入缓存并生成响应：${domain} -> 203.0.113.10。由于客户端在另一个网段，响应也需要先交给路由器。`,
+      protocol: "DNS",
+      cast: "单播",
+      cacheStatus: "缓存更新",
+      l2: "路由器 DNS 网段接口 R2",
+      l3: "客户端 10.0.1.10",
+      route: ["dns", "router"],
+      paths: ["router-dns"],
+      active: ["dns", "router"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "Answer",
+      cache: { domain, ip: "203.0.113.10" },
+    },
+    {
+      title: "步骤 8：路由器把 DNS 响应转发给客户端",
+      text: "路由器把响应转发到客户端网段。此时二层目的 MAC 是客户端 C1，三层源地址仍是本地 DNS 10.0.2.53。",
+      protocol: "路由转发",
+      cast: "单播",
+      cacheStatus: "缓存已写入",
+      l2: "客户端 MAC C1",
+      l3: "客户端 10.0.1.10",
+      route: ["router", "client"],
+      paths: ["client-router"],
+      active: ["router", "client"],
+      arp: [["10.0.1.1", "R1"]],
+      label: "IP",
+      success: true,
+      result: `改版结果：${domain} = 203.0.113.10，跨网段 DNS 查询完成`,
+    },
+    ];
+  }
+
+  function hitSteps(domain, cached) {
+    return [
+      {
+        title: "步骤 1：客户端判断 DNS 服务器不在本网段",
+        text: `客户端 10.0.1.10 要查询 ${domain}，本地 DNS 10.0.2.53 位于另一个网段，因此仍需先走默认网关。`,
+        protocol: "本地判断",
+        cast: "本机检查",
+        cacheStatus: "未查询",
+        l2: "默认网关待解析",
+        l3: "本地 DNS 10.0.2.53",
+        route: ["client"],
+        paths: [],
+        active: ["client"],
+        arp: [],
+        label: "检查",
+      },
+      {
+        title: "步骤 2：客户端 ARP 查询默认网关 MAC",
+        text: "客户端需要把 DNS 查询交给默认网关，先广播 ARP Request 获取网关接口 MAC。",
+        protocol: "ARP",
+        cast: "广播",
+        cacheStatus: "未查询",
+        l2: "ff-ff-ff-ff-ff-ff",
+        l3: "默认网关 10.0.1.1",
+        route: ["client", "router"],
+        paths: ["client-router"],
+        active: ["client", "router"],
+        broadcast: ["router"],
+        arp: [],
+        label: "ARP",
+      },
+      {
+        title: "步骤 3：客户端把 DNS Query 发给默认网关",
+        text: "客户端已经获得网关 MAC，发出的以太网帧目的 MAC 是 R1，IP 数据报目的地址是本地 DNS 10.0.2.53。",
+        protocol: "DNS / UDP",
+        cast: "单播",
+        cacheStatus: "查询中",
+        l2: "默认网关 MAC R1",
+        l3: "本地 DNS 10.0.2.53",
+        route: ["client", "router"],
+        paths: ["client-router"],
+        active: ["client", "router"],
+        arp: [["10.0.1.1", "R1"]],
+        label: "Query",
+      },
+      {
+        title: "步骤 4：路由器转发查询到本地 DNS",
+        text: "路由器把 DNS 查询从客户端网段转发到 DNS 网段，本地 DNS 收到查询后检查自己的缓存表。",
+        protocol: "路由转发",
+        cast: "单播",
+        cacheStatus: "查询缓存",
+        l2: "本地 DNS MAC D1",
+        l3: "本地 DNS 10.0.2.53",
+        route: ["router", "dns"],
+        paths: ["router-dns"],
+        active: ["router", "dns"],
+        arp: [["10.0.1.1", "R1"]],
+        label: "转发",
+      },
+      {
+        title: "步骤 5：本地 DNS 缓存命中",
+        text: `本地 DNS 缓存表中已有 ${domain} -> ${cached.ip}，无需再访问根/权威 DNS。`,
+        protocol: "DNS",
+        cast: "本地缓存命中",
+        cacheStatus: "缓存命中",
+        l2: "本地 DNS 内部查询",
+        l3: domain,
+        route: ["dns"],
+        paths: [],
+        active: ["dns"],
+        arp: [["10.0.1.1", "R1"]],
+        label: "命中",
+      },
+      {
+        title: "步骤 6：DNS 响应经路由器返回客户端",
+        text: `本地 DNS 将缓存中的 ${cached.ip} 返回给客户端，跨网段响应仍由路由器转发。`,
+        protocol: "DNS",
+        cast: "单播",
+        cacheStatus: "缓存命中",
+        l2: "客户端 MAC C1",
+        l3: "客户端 10.0.1.10",
+        route: ["dns", "router", "client"],
+        paths: ["router-dns", "client-router"],
+        active: ["dns", "router", "client"],
+        arp: [["10.0.1.1", "R1"]],
+        label: "IP",
+        success: true,
+        result: `改版结果：${domain} = ${cached.ip}，命中本地 DNS 缓存`,
+      },
+    ];
+  }
+
+  function steps() {
+    const domain = domainInput.value.trim() || "www.abc.com";
+    const cached = cache.find((item) => item.domain === domain);
+    return cached ? hitSteps(domain, cached) : missSteps(domain);
+  }
+
+  function renderCache() {
+    renderSimpleTable(
+      cacheTable,
+      cache.map((item) => [item.domain, item.ip]),
+      "空"
+    );
+  }
+
+  function movePacket(step) {
+    const points = step.route.map((name) => nodeCenter(stage, `[data-rdns-node="${name}"]`));
+    if (!points.length) return;
+    packet.textContent = step.label;
+    packet.classList.remove("visible", "pulse");
+    packet.style.transition = "none";
+    packet.style.left = `${points[0].left}px`;
+    packet.style.top = `${points[0].top}px`;
+    packet.getBoundingClientRect();
+    packet.classList.add("visible");
+    packet.style.transition = "";
+    points.slice(1).forEach((point, pointIndex) => {
+      window.setTimeout(() => {
+        packet.style.left = `${point.left}px`;
+        packet.style.top = `${point.top}px`;
+      }, 80 + pointIndex * 460);
+    });
+    if (points.length === 1) {
+      packet.classList.add("pulse");
+    }
+  }
+
+  function render(step) {
+    title.textContent = step.title;
+    text.textContent = step.text;
+    protocol.textContent = step.protocol;
+    cast.textContent = step.cast;
+    cacheStatus.textContent = step.cacheStatus;
+    l2Target.textContent = step.l2;
+    l3Target.textContent = step.l3;
+    result.textContent = step.result || "改版结果：执行中";
+    result.classList.toggle("success", Boolean(step.success));
+    nodes.forEach((node) => {
+      node.classList.toggle("active", step.active.includes(node.dataset.rdnsNode));
+      node.classList.toggle("broadcast", step.broadcast?.includes(node.dataset.rdnsNode));
+    });
+    paths.forEach((path) => path.classList.toggle("active", step.paths.includes(path.dataset.rdnsPath)));
+    renderSimpleTable(arpTable, step.arp, "空");
+    if (step.cache && !cache.some((item) => item.domain === step.cache.domain)) {
+      cache.push(step.cache);
+      renderCache();
+    }
+    movePacket(step);
+  }
+
+  function reset() {
+    stopAuto();
+    index = -1;
+    activeSteps = [];
+    title.textContent = "等待开始";
+    text.textContent = "点击开始后，按步骤观察跨网段 DNS 查询中的网关 ARP、路由转发和递归解析过程。";
+    result.textContent = "改版结果：等待开始";
+    result.classList.remove("success");
+    protocol.textContent = "无";
+    cast.textContent = "无";
+    cacheStatus.textContent = "未查询";
+    l2Target.textContent = "无";
+    l3Target.textContent = "无";
+    nodes.forEach((node) => node.classList.remove("active", "broadcast"));
+    paths.forEach((path) => path.classList.remove("active"));
+    packet.classList.remove("visible", "pulse");
+    renderSimpleTable(arpTable, [], "空");
+    renderCache();
+  }
+
+  function clearCache() {
+    stopAuto();
+    cache = [];
+    reset();
+    cacheStatus.textContent = "缓存已清空";
+  }
+
+  function next() {
+    if (activeSteps.length === 0) {
+      activeSteps = steps();
+    }
+    if (index >= activeSteps.length - 1) {
+      stopAuto();
+      return;
+    }
+    index += 1;
+    render(activeSteps[index]);
+  }
+
+  function stopAuto() {
+    if (timer) {
+      window.clearInterval(timer);
+      timer = null;
+    }
+    autoButton.textContent = "自动播放";
+    autoButton.classList.remove("active");
+  }
+
+  function toggleAuto() {
+    if (timer) {
+      stopAuto();
+      return;
+    }
+    if (activeSteps.length === 0 || index >= activeSteps.length - 1) {
+      reset();
+      activeSteps = steps();
+    }
+    next();
+    autoButton.textContent = "暂停播放";
+    autoButton.classList.add("active");
+    timer = window.setInterval(next, autoplayTiming.dns);
+  }
+
+  document.querySelector("#routedDnsStart").addEventListener("click", () => {
+    reset();
+    activeSteps = steps();
+    next();
+  });
+  document.querySelector("#routedDnsNext").addEventListener("click", () => {
+    stopAuto();
+    next();
+  });
+  autoButton.addEventListener("click", toggleAuto);
+  document.querySelector("#routedDnsReset").addEventListener("click", reset);
+  document.querySelector("#routedDnsClearCache").addEventListener("click", clearCache);
+  reset();
+}
+
 function setupTcpDemo() {
   let index = -1;
   let sequence = [];
@@ -3214,6 +3585,7 @@ async function setup3DKnowledgeGraph() {
 async function boot() {
   setupProtocolTabs();
   setupDnsDemo();
+  setupRoutedDnsDemo();
   setupTcpDemo();
   setupArpDemo();
   setupSwitchingDemo();
